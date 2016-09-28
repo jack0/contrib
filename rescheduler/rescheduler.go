@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -34,7 +35,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 
 	"github.com/golang/glog"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -43,32 +44,32 @@ const (
 )
 
 var (
-	flags = flag.NewFlagSet(
+	pflags = pflag.NewFlagSet(
 		`rescheduler: rescheduler --running-in-cluster=true`,
-		flag.ExitOnError)
+		pflag.ExitOnError)
 
-	inCluster = flags.Bool("running-in-cluster", true,
+	inCluster = pflags.Bool("running-in-cluster", true,
 		`Optional, if this controller is running in a kubernetes cluster, use the
 		 pod secrets for creating a Kubernetes client.`)
 
-	contentType = flags.String("kube-api-content-type", "application/vnd.kubernetes.protobuf",
+	contentType = pflags.String("kube-api-content-type", "application/vnd.kubernetes.protobuf",
 		`Content type of requests sent to apiserver.`)
 
-	housekeepingInterval = flags.Duration("housekeeping-interval", 10*time.Second,
+	housekeepingInterval = pflags.Duration("housekeeping-interval", 10*time.Second,
 		`How often rescheduler takes actions.`)
 
-	systemNamespace = flags.String("system-namespace", kube_api.NamespaceSystem,
+	systemNamespace = pflags.String("system-namespace", kube_api.NamespaceSystem,
 		`Namespace to watch for critical addons.`)
 
-	initialDelay = flags.Duration("initial-delay", 2*time.Minute,
+	initialDelay = pflags.Duration("initial-delay", 2*time.Minute,
 		`How long should rescheduler wait after start to make sure
 		 all critical addons had a chance to start.`)
 
-	podScheduledTimeout = flags.Duration("pod-scheduled-timeout", 10*time.Minute,
+	podScheduledTimeout = pflags.Duration("pod-scheduled-timeout", 10*time.Minute,
 		`How long should rescheduler wait for critical pod to be scheduled
 		 after evicting pods to make a spot for it.`)
 
-	valuableNSList = flags.StringSlice("valuable-namespaces", []string{},
+	valuableNSList = pflags.StringSlice("valuable-namespaces", []string{},
 		`Ordered list of valuable namespaces from lowest priority namespace
 	     to highest priority namespace. Pods that do not belong to a 
          valuable namespace or is not a critical pod will be the first ones 
@@ -78,12 +79,13 @@ var (
 func main() {
 	glog.Infof("Running Rescheduler")
 
-	flags.Parse(os.Args)
+	pflags.AddGoFlagSet(flag.CommandLine)
+	pflags.Parse(os.Args)
 
 	// TODO(piosz): figure our a better way of verifying cluster stabilization here.
 	time.Sleep(*initialDelay)
 
-	kubeClient, err := createKubeClient(flags, *inCluster)
+	kubeClient, err := createKubeClient(pflags, *inCluster)
 	if err != nil {
 		glog.Fatalf("Failed to create kube client: %v", err)
 	}
@@ -167,7 +169,7 @@ func waitForScheduled(client *kube_client.Client, podsBeingProcessed *podSet, po
 	podsBeingProcessed.Remove(pod)
 }
 
-func createKubeClient(flags *flag.FlagSet, inCluster bool) (*kube_client.Client, error) {
+func createKubeClient(flags *pflag.FlagSet, inCluster bool) (*kube_client.Client, error) {
 	var config *kube_restclient.Config
 	var err error
 	if inCluster {

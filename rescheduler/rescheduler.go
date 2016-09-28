@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	goflag "flag"
 	"fmt"
 	"os"
 	"time"
@@ -78,6 +79,7 @@ var (
 func main() {
 	glog.Infof("Running Rescheduler")
 
+	flags.AddGoFlagSet(goflag.CommandLine)
 	flags.Parse(os.Args)
 
 	// TODO(piosz): figure our a better way of verifying cluster stabilization here.

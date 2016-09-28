@@ -68,9 +68,11 @@ var (
 		`How long should rescheduler wait for critical pod to be scheduled
 		 after evicting pods to make a spot for it.`)
 
-	podBucketList = flags.StringSlice("bucket-list", []string{},
-		`Ordered list of bucket namespaces from lowest priority bucket
-	     to highest priority bucket`)
+	valuableNSList = flags.StringSlice("valuable-namespaces", []string{},
+		`Ordered list of valuable namespaces from lowest priority namespace
+	     to highest priority namespace. Pods that do not belong to a 
+         valuable namespace or is not a critical pod will be the first ones 
+         evicted by the rescheduler.`)
 )
 
 func main() {
@@ -242,6 +244,8 @@ func prepareNodeForPod(client *kube_client.Client, recorder kube_record.EventRec
 	}
 
 	requiredPods, otherPods, err := groupPods(client, node)
+	glog.V(2).Infof("Critical pods: %v, other pods: %v", requiredPods,
+		otherPods)
 	if err != nil {
 		return err
 	}
@@ -365,9 +369,9 @@ func groupPods(client *kube_client.Client, node *kube_api.Node) ([]*kube_api.Pod
 		return []*kube_api.Pod{}, []*kube_api.Pod{}, err
 	}
 
-	podBucketMap := make(map[string][]*kube_api.Pod)
-	for _, bucketName := range *podBucketList {
-		podBucketMap[bucketName] = make([]*kube_api.Pod, 0)
+	valuableNSMap := make(map[string][]*kube_api.Pod)
+	for _, valuableNS := range *valuableNSList {
+		valuableNSMap[valuableNS] = make([]*kube_api.Pod, 0)
 	}
 
 	requiredPods := make([]*kube_api.Pod, 0)
@@ -382,15 +386,15 @@ func groupPods(client *kube_client.Client, node *kube_api.Node) ([]*kube_api.Pod
 
 		if ca_simulator.IsMirrorPod(pod) || creatorRef == "DaemonSet" || isCriticalPod(pod) {
 			requiredPods = append(requiredPods, pod)
-		} else if bucketList, ok := podBucketMap[pod.GetNamespace()]; ok {
-			bucketList = append(bucketList, pod)
+		} else if valuableNSBucket, ok := valuableNSMap[pod.GetNamespace()]; ok {
+			valuableNSBucket = append(valuableNSBucket, pod)
 		} else {
 			otherPods = append(otherPods, pod)
 		}
 	}
 
-	for _, bucketName := range *podBucketList {
-		otherPods = append(otherPods, podBucketMap[bucketName]...)
+	for _, valuableNS := range *valuableNSList {
+		otherPods = append(otherPods, valuableNSMap[valuableNS]...)
 	}
 
 	return requiredPods, otherPods, nil
